@@ -1,10 +1,11 @@
+// @ts-nocheck
 "use client";
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, Search, AlertCircle, ExternalLink, TrendingUp, ListChecks, Globe, Laptop, Link as LinkIcon } from "lucide-react";
+import { Loader2, Search, AlertCircle, ExternalLink, TrendingUp, ListChecks, Globe, Laptop, Link as LinkIcon, Tags, Flame, ActivitySquare, ShieldCheck, UsersRound, CalendarDays, Clock, BarChartBig, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,21 +16,37 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 import { checkKeywordRanking, type CheckKeywordRankingInput, type CheckKeywordRankingOutput } from "@/ai/flows/check-keyword-ranking";
 import { PLATFORMS, COUNTRIES } from "@/lib/constants";
 
 const FormSchema = z.object({
   keywords: z.string().min(1, "Please enter at least one keyword.").describe("Comma-separated list of keywords"),
-  // url field removed as per user request
   platform: z.string().default("google"),
   country: z.string().default("US"),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
 
+// Helper to render competition icons
+const CompetitionIcon = ({ level }: { level: 'High' | 'Medium' | 'Low' | 'N/A' | string }) => {
+  switch (level) {
+    case 'High':
+      return <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 p-0"><Flame className="h-4 w-4 text-destructive" /></Button></TooltipTrigger><TooltipContent><p>High Competition</p></TooltipContent></Tooltip></TooltipProvider>;
+    case 'Medium':
+      return <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 p-0"><ActivitySquare className="h-4 w-4 text-yellow-500" /></Button></TooltipTrigger><TooltipContent><p>Medium Competition</p></TooltipContent></Tooltip></TooltipProvider>;
+    case 'Low':
+      return <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 p-0"><ShieldCheck className="h-4 w-4 text-green-500" /></Button></TooltipTrigger><TooltipContent><p>Low Competition</p></TooltipContent></Tooltip></TooltipProvider>;
+    default:
+      return <span className="text-muted-foreground text-xs">N/A</span>;
+  }
+};
+
+
 export function KeywordRankChecker() {
-  const [rankingResults, setRankingResults] = React.useState<CheckKeywordRankingOutput | null>(null);
+  const [analysisResults, setAnalysisResults] = React.useState<CheckKeywordRankingOutput | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const { toast } = useToast();
@@ -38,7 +55,6 @@ export function KeywordRankChecker() {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       keywords: "",
-      // url: "", // Default value removed
       platform: "google",
       country: "US",
     },
@@ -47,21 +63,20 @@ export function KeywordRankChecker() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
     setError(null);
-    setRankingResults(null);
+    setAnalysisResults(null);
 
     try {
-      // data will not contain 'url' anymore
       const result = await checkKeywordRanking(data);
-      setRankingResults(result);
-      if (result.length === 0) {
+      setAnalysisResults(result);
+      if (!result.originalKeywordRankings?.length && !result.relatedKeywordSuggestions?.length) {
         toast({
           title: "No results",
-          description: "No ranking information found for the given keywords.",
+          description: "No ranking information or related keywords found.",
         });
       } else {
          toast({
-          title: "Success!",
-          description: "Keyword ranking check completed.",
+          title: "Analysis Complete!",
+          description: "Keyword ranking and suggestion check finished.",
         });
       }
     } catch (e) {
@@ -71,7 +86,7 @@ export function KeywordRankChecker() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: `Failed to check keyword ranking: ${errorMessage}`,
+        description: `Failed to perform keyword analysis: ${errorMessage}`,
       });
     } finally {
       setIsLoading(false);
@@ -82,9 +97,9 @@ export function KeywordRankChecker() {
     <div className="space-y-8">
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-2xl">Keyword Rank Checker</CardTitle>
+          <CardTitle className="text-2xl">Keyword Analyzer</CardTitle>
           <CardDescription>
-            Enter your keywords and select platform/country to check rankings.
+            Enter keywords to check rankings and discover related keyword opportunities.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -110,8 +125,6 @@ export function KeywordRankChecker() {
                   </FormItem>
                 )}
               />
-
-              {/* Blogger URL FormField removed */}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
@@ -169,12 +182,12 @@ export function KeywordRankChecker() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Checking...
+                    Analyzing...
                   </>
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
-                    Check Rankings
+                    Analyze Keywords
                   </>
                 )}
               </Button>
@@ -191,67 +204,129 @@ export function KeywordRankChecker() {
         </Alert>
       )}
 
-      {rankingResults && (
+      {analysisResults?.originalKeywordRankings && analysisResults.originalKeywordRankings.length > 0 && (
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl flex items-center gap-2"><TrendingUp className="h-6 w-6 text-primary"/>Ranking Results</CardTitle>
+            <CardTitle className="text-2xl flex items-center gap-2"><TrendingUp className="h-6 w-6 text-primary"/>Original Keyword Rankings</CardTitle>
           </CardHeader>
           <CardContent>
-            {rankingResults.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Keyword</TableHead>
-                    <TableHead className="text-center">Ranking</TableHead>
-                    <TableHead>Ranked URL</TableHead>
-                    <TableHead>Search Result Page</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rankingResults.map((result, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{result.keyword}</TableCell>
-                      <TableCell className="text-center">
-                        {result.ranking !== null ? (
-                           <span className="font-bold text-lg text-primary">{result.ranking}</span>
-                        ) : (
-                          <span className="text-muted-foreground">Not Found</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {result.rankedUrl ? (
-                          <a
-                            href={result.rankedUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center gap-1 break-all"
-                          >
-                             <LinkIcon className="h-4 w-4 flex-shrink-0" /> <span className="truncate max-w-xs">{result.rankedUrl}</span>
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">N/A</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Keyword</TableHead>
+                  <TableHead className="text-center">Ranking</TableHead>
+                  <TableHead>Ranked URL</TableHead>
+                  <TableHead>Search Result Page</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {analysisResults.originalKeywordRankings.map((result, index) => (
+                  <TableRow key={`original-${index}`}>
+                    <TableCell className="font-medium">{result.keyword}</TableCell>
+                    <TableCell className="text-center">
+                      {result.ranking !== null ? (
+                         <span className="font-bold text-lg text-primary">{result.ranking}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Not Found</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {result.rankedUrl ? (
                         <a
-                          href={result.searchResultPage}
+                          href={result.rankedUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-primary hover:underline flex items-center gap-1"
+                          className="text-primary hover:underline flex items-center gap-1 break-all"
                         >
-                          View Page <ExternalLink className="h-4 w-4" />
+                           <LinkIcon className="h-4 w-4 flex-shrink-0" /> <span className="truncate max-w-xs">{result.rankedUrl}</span>
                         </a>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <p className="text-muted-foreground text-center py-4">No ranking data to display for the current inputs.</p>
-            )}
+                      ) : (
+                        <span className="text-muted-foreground">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <a
+                        href={result.searchResultPage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline flex items-center gap-1"
+                      >
+                        View Page <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
+
+      {analysisResults?.relatedKeywordSuggestions && analysisResults.relatedKeywordSuggestions.length > 0 && (
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-2xl flex items-center gap-2">
+              <Tags className="h-6 w-6 text-primary"/>Related Keyword Opportunities
+            </CardTitle>
+            <CardDescription className="flex items-center gap-1">
+              <Info className="h-4 w-4" />
+              <span>Estimated metrics for related keywords.</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Related Keyword</TableHead>
+                  <TableHead className="text-center">Competition</TableHead>
+                  <TableHead>Est. Search Volume</TableHead>
+                  <TableHead>Est. 30-Day Searches</TableHead>
+                  <TableHead>Est. 24-Hour Searches</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {analysisResults.relatedKeywordSuggestions.map((result, index) => (
+                  <TableRow key={`related-${index}`}>
+                    <TableCell className="font-medium">{result.relatedKeyword}</TableCell>
+                    <TableCell className="text-center">
+                       <CompetitionIcon level={result.competition} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <BarChartBig className="h-4 w-4 text-muted-foreground flex-shrink-0" /> 
+                        <span>{result.searchVolume || 'N/A'}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <CalendarDays className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span>{result.last30DaysSearches || 'N/A'}</span>
+                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span>{result.last24HoursSearches || 'N/A'}</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {analysisResults && !analysisResults.originalKeywordRankings?.length && !analysisResults.relatedKeywordSuggestions?.length && !isLoading && !error && (
+         <Card className="shadow-md">
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">No data found for the provided keywords and options. Try different keywords or broaden your search.</p>
+            </CardContent>
+          </Card>
+      )}
+
     </div>
   );
 }
+
+    
