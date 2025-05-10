@@ -25,7 +25,7 @@ export default function RankseerPage() {
             Discover Your Keyword Rankings
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Analyze your Blogger site's keyword performance across various search platforms and countries with ease.
+            Analyze keyword performance across various search platforms and countries with ease.
           </p>
         </div>
         <KeywordRankChecker />

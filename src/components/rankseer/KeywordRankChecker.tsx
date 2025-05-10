@@ -4,7 +4,7 @@ import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, Search, AlertCircle, ExternalLink, TrendingUp, ListChecks, Globe, Laptop } from "lucide-react";
+import { Loader2, Search, AlertCircle, ExternalLink, TrendingUp, ListChecks, Globe, Laptop, Link as LinkIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import { PLATFORMS, COUNTRIES } from "@/lib/constants";
 
 const FormSchema = z.object({
   keywords: z.string().min(1, "Please enter at least one keyword.").describe("Comma-separated list of keywords"),
-  url: z.string().url("Please enter a valid URL.").describe("Blogger website URL"),
+  // url field removed as per user request
   platform: z.string().default("google"),
   country: z.string().default("US"),
 });
@@ -38,7 +38,7 @@ export function KeywordRankChecker() {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       keywords: "",
-      url: "",
+      // url: "", // Default value removed
       platform: "google",
       country: "US",
     },
@@ -50,12 +50,13 @@ export function KeywordRankChecker() {
     setRankingResults(null);
 
     try {
+      // data will not contain 'url' anymore
       const result = await checkKeywordRanking(data);
       setRankingResults(result);
       if (result.length === 0) {
         toast({
           title: "No results",
-          description: "No ranking information found for the given keywords and URL.",
+          description: "No ranking information found for the given keywords.",
         });
       } else {
          toast({
@@ -83,7 +84,7 @@ export function KeywordRankChecker() {
         <CardHeader>
           <CardTitle className="text-2xl">Keyword Rank Checker</CardTitle>
           <CardDescription>
-            Enter your keywords, Blogger URL, and select platform/country to check rankings.
+            Enter your keywords and select platform/country to check rankings.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -110,22 +111,7 @@ export function KeywordRankChecker() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2"><ExternalLink className="h-5 w-5 text-primary" />Blogger URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., https://yourblog.blogspot.com" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      The URL of your Blogger website (e.g. example.blogspot.com or a custom domain).
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Blogger URL FormField removed */}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
@@ -217,6 +203,7 @@ export function KeywordRankChecker() {
                   <TableRow>
                     <TableHead>Keyword</TableHead>
                     <TableHead className="text-center">Ranking</TableHead>
+                    <TableHead>Ranked URL</TableHead>
                     <TableHead>Search Result Page</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -229,6 +216,20 @@ export function KeywordRankChecker() {
                            <span className="font-bold text-lg text-primary">{result.ranking}</span>
                         ) : (
                           <span className="text-muted-foreground">Not Found</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {result.rankedUrl ? (
+                          <a
+                            href={result.rankedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center gap-1 break-all"
+                          >
+                             <LinkIcon className="h-4 w-4 flex-shrink-0" /> <span className="truncate max-w-xs">{result.rankedUrl}</span>
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">N/A</span>
                         )}
                       </TableCell>
                       <TableCell>
