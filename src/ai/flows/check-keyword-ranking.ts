@@ -94,7 +94,7 @@ const searchWeb = ai.defineTool(
     }
     if (!cx || cx === "YOUR_CUSTOM_SEARCH_ENGINE_ID_HERE" || cx.trim() === "") {
       console.error('GOOGLE_CUSTOM_SEARCH_ENGINE_ID is not set or is set to placeholder in environment variables.');
-      return '<html><body><h3>Configuration Error</h3><p>Google Custom Search Engine ID (GOOGLE_CUSTOM_SEARCH_ENGINE_ID) is not configured or is set to a placeholder value in the backend. Please set it in the .env file.</p><p>Example: GOOGLE_CUSTOM_SEARCH_ENGINE_ID=YOUR_CX_ID_FROM_GOOGLE_CSE</p></body></html>';
+      return '<html><body><h3>Configuration Error</h3><p>Google Custom Search Engine ID (GOOGLE_CUSTOM_SEARCH_ENGINE_ID) is not configured or is set to a placeholder value in the backend. Please set it in the .env file (e.g., GOOGLE_CUSTOM_SEARCH_ENGINE_ID=YOUR_CX_ID_FROM_GOOGLE_CSE). Without it, Google search will not work.</p></body></html>';
     }
     
     const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&gl=${country.toLowerCase()}&num=20`; // Get top 20 results
@@ -167,24 +167,23 @@ const checkRankingPrompt = ai.definePrompt({
       a.  Use the searchWeb tool to search for the keyword on the specified platform and country. The tool will return HTML content.
       b.  Analyze the HTML content. The HTML will contain a list of search results, each with a "Rank", "URL", "Title", and "Snippet".
       c.  Identify the highest-ranking or most relevant search result. Extract its numerical position (from "Rank: N"), its full URL (from "URL: http..."), and the URL of the search engine results page you conceptually visited (e.g., "https://www.google.com/search?q=yourquery&gl=US" or for other platforms, "https://www.bing.com/search?q=yourquery&cc=US").
-      d.  If the HTML indicates "No results found" or an error, or if ranking cannot be determined, 'ranking' and 'rankedUrl' should be null for that keyword. The 'searchResultPage' should still be the conceptual search URL.
+      d.  If the HTML indicates "No results found" or an error (such as "Configuration Error" or "API Error" messages within the HTML), or if ranking cannot be determined, 'ranking' and 'rankedUrl' should be null for that keyword. The 'searchResultPage' should still be the conceptual search URL (e.g., 'https://www.google.com/search?q=THE_KEYWORD&gl=US').
   3.  Compile these findings into the 'originalKeywordRankings' array.
 
   PART 2: Related Keyword Suggestions & Metrics
-  1.  Based on the overall context of the input keywords and the search results from Part 1, generate a list of 5-6 distinct related keywords that could be valuable for the user.
+  1.  Based on the overall context of the input keywords and the search results from Part 1 (even if some searches failed or returned errors), generate a list of 5-6 distinct related keywords that could be valuable for the user. If Part 1 yielded errors for all keywords (e.g., due to a configuration issue), rely on your general SEO knowledge about the input keywords.
   2.  For each of these *related* keywords, provide the following estimations. Base these estimations on your general SEO knowledge and, if applicable, insights from any searchWeb tool usage. These are estimates, not exact figures.
       a.  'relatedKeyword': The related keyword itself.
       b.  'competition': Estimate the competition level as 'High', 'Medium', or 'Low'. If you cannot determine, use 'N/A'. This should be a string value.
       c.  'searchVolume': Estimate the monthly search volume. Prefer specific numbers or ranges (e.g., "Approx. 500-600/month", "1K-10K/month"). Descriptive terms like "Very High (100k+/month)", "Low (<100/month)" are acceptable if exact numbers are not possible. Use "N/A" if undetermined.
       d.  'last30DaysSearches': Estimate the search volume or trend over the last 30 days. Prefer specific numbers or ranges (e.g., "Approx. 1.5K searches", "Approx. 5000-6000 searches"). If specific numbers are not determinable, use trend descriptions like "Increased", "Stable", "Decreased". Use "N/A" if undetermined.
       e.  'last24HoursSearches': Estimate the search volume or trend over the last 24 hours. Prefer specific numbers or ranges (e.g., "Approx. 50 searches", "Approx. 100-150 searches"). If specific numbers are not determinable, use activity descriptions like "High activity", "Low activity". Use "N/A" if undetermined.
-  3.  Compile these findings into the 'relatedKeywordSuggestions' array. If no relevant suggestions can be made, this array can be empty.
+  3.  Compile these findings into the 'relatedKeywordSuggestions' array. If no relevant suggestions can be made, this array can be empty or omitted.
 
   Output Format:
   Ensure the output is a single JSON object strictly conforming to the CheckKeywordRankingOutputSchema.
-  The object must contain two keys:
-  - 'originalKeywordRankings': An array of objects, each conforming to RankingResultSchema.
-  - 'relatedKeywordSuggestions': An array of objects, each conforming to RelatedKeywordMetricsSchema.
+  The object must contain 'originalKeywordRankings' (an array, possibly empty).
+  'relatedKeywordSuggestions' is optional but preferred; if provided, it must be an array (possibly empty).
   `,
   config: {
     safetySettings: [
@@ -216,18 +215,36 @@ const checkKeywordRankingFlow = ai.defineFlow(
   },
   async (input: CheckKeywordRankingInput) => {
     const {output, history} = await checkRankingPrompt(input);
+    
     if (!output) {
-      console.error("Flow Error: No output from checkRankingPrompt. History:", JSON.stringify(history, null, 2));
+      if (history && history.length > 0) {
+        const lastInteraction = history[history.length - 1];
+        // Attempt to stringify safely, handling potential circular references or large objects
+        let lastInteractionStr = 'Could not stringify last interaction.';
+        try {
+          lastInteractionStr = JSON.stringify(lastInteraction, null, 2);
+        } catch (e) {
+          console.error("Error stringifying last history interaction:", e);
+        }
+        console.error("Flow Error: No output from checkRankingPrompt. Last interaction:", lastInteractionStr);
+      } else {
+        console.error("Flow Error: No output from checkRankingPrompt. History is empty or undefined.");
+      }
       // Return a default structure if output is null/undefined to satisfy schema
       return {
         originalKeywordRankings: [],
         relatedKeywordSuggestions: [],
       };
     }
-    // Ensure relatedKeywordSuggestions is an array, even if undefined from LLM
+
+    // Ensure output itself exists and then access properties safely
+    const rankings = (output && output.originalKeywordRankings) ? output.originalKeywordRankings : [];
+    const suggestions = (output && output.relatedKeywordSuggestions) ? output.relatedKeywordSuggestions : [];
+    
     return {
-        originalKeywordRankings: output.originalKeywordRankings || [],
-        relatedKeywordSuggestions: output.relatedKeywordSuggestions || [],
+        originalKeywordRankings: rankings,
+        relatedKeywordSuggestions: suggestions,
     };
   }
 );
+
