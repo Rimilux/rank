@@ -32,7 +32,7 @@ const RankingResultSchema = z.object({
     .url()
     .nullable()
     .describe('The URL of the content that achieved the reported ranking. Null if ranking is null.'),
-  searchResultPage: z.string().url().describe('The URL of the search engine result page.'),
+  searchResultPage: z.string().url().describe('The URL of the search engine result page (e.g., https://www.google.com/search?q=keyword%20phrase&gl=US). Must be a valid, URL-encoded string.'),
 });
 
 const RelatedKeywordMetricsSchema = z.object({
@@ -64,7 +64,7 @@ const searchWeb = ai.defineTool(
         .string()
         .default('google')
         .describe('The platform or search engine to check ranking on. Currently, only "google" is supported for live search.'),
-      country: z.string().default('US').describe('The target country for the search (e.g., US, GB). Used as "gl" parameter for Google.'),
+      country: z.string().default('US').describe('The target country for the search (e.g., US, GB).'),
     }),
     outputSchema: z.string().describe('HTML content of the search results or an error/info message.'),
   },
@@ -166,8 +166,8 @@ const checkRankingPrompt = ai.definePrompt({
   2.  For each original keyword:
       a.  Use the searchWeb tool to search for the keyword on the specified platform and country. The tool will return HTML content.
       b.  Analyze the HTML content. The HTML will contain a list of search results, each with a "Rank", "URL", "Title", and "Snippet".
-      c.  Identify the highest-ranking or most relevant search result. Extract its numerical position (from "Rank: N"), its full URL (from "URL: http..."), and the URL of the search engine results page you conceptually visited (e.g., "https://www.google.com/search?q=yourquery&gl=US" or for other platforms, "https://www.bing.com/search?q=yourquery&cc=US").
-      d.  If the HTML indicates "No results found" or an error (such as "Configuration Error" or "API Error" messages within the HTML), or if ranking cannot be determined, 'ranking' and 'rankedUrl' should be null for that keyword. The 'searchResultPage' should still be the conceptual search URL (e.g., 'https://www.google.com/search?q=THE_KEYWORD&gl=US').
+      c.  Identify the highest-ranking or most relevant search result. Extract its numerical position (from "Rank: N"), its full URL (from "URL: http..."), and the URL of the search engine results page you conceptually visited. This URL must be properly formed: for a keyword like "best budget laptop" and country "US" on Google, it would be "https://www.google.com/search?q=best%20budget%20laptop&gl=US". For other platforms, construct a similar, valid URL (e.g., for Bing: "https://www.bing.com/search?q=best%20budget%20laptop&cc=US"). Ensure any spaces or special characters in the keyword part of the URL are URL-encoded (e.g., space becomes %20).
+      d.  If the HTML indicates "No results found" or an error (such as "Configuration Error" or "API Error" messages within the HTML), or if ranking cannot be determined, 'ranking' and 'rankedUrl' should be null for that keyword. The 'searchResultPage' should still be the conceptual search URL, correctly URL-encoded. For example, if the original keyword was "learn javascript" and country was "CA", the searchResultPage should be "https://www.google.com/search?q=learn%20javascript&gl=CA" (or the equivalent for other platforms).
   3.  Compile these findings into the 'originalKeywordRankings' array.
 
   PART 2: Related Keyword Suggestions & Metrics
