@@ -30,21 +30,6 @@ const FormSchema = z.object({
 
 type FormValues = z.infer<typeof FormSchema>;
 
-// Helper to render competition icons
-const CompetitionIcon = ({ level }: { level: 'High' | 'Medium' | 'Low' | 'N/A' | string }) => {
-  switch (level) {
-    case 'High':
-      return <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 p-0"><Flame className="h-4 w-4 text-destructive" /></Button></TooltipTrigger><TooltipContent><p>High Competition</p></TooltipContent></Tooltip></TooltipProvider>;
-    case 'Medium':
-      return <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 p-0"><ActivitySquare className="h-4 w-4 text-yellow-500" /></Button></TooltipTrigger><TooltipContent><p>Medium Competition</p></TooltipContent></Tooltip></TooltipProvider>;
-    case 'Low':
-      return <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 p-0"><ShieldCheck className="h-4 w-4 text-green-500" /></Button></TooltipTrigger><TooltipContent><p>Low Competition</p></TooltipContent></Tooltip></TooltipProvider>;
-    default:
-      return <span className="text-muted-foreground text-xs">N/A</span>;
-  }
-};
-
-
 export function KeywordRankChecker() {
   const [analysisResults, setAnalysisResults] = React.useState<CheckKeywordRankingOutput | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -289,7 +274,12 @@ export function KeywordRankChecker() {
                   <TableRow key={`related-${index}`}>
                     <TableCell className="font-medium">{result.relatedKeyword}</TableCell>
                     <TableCell className="text-center">
-                       <CompetitionIcon level={result.competition} />
+                       <span className={
+                        result.competition === 'High' ? 'text-destructive font-medium' :
+                        result.competition === 'Medium' ? 'text-yellow-600 font-medium' :
+                        result.competition === 'Low' ? 'text-green-600 font-medium' :
+                        'text-muted-foreground'
+                       }>{result.competition}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
@@ -328,5 +318,3 @@ export function KeywordRankChecker() {
     </div>
   );
 }
-
-    

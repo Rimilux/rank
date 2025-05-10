@@ -37,10 +37,10 @@ const RankingResultSchema = z.object({
 
 const RelatedKeywordMetricsSchema = z.object({
   relatedKeyword: z.string().describe('A keyword related to the original input.'),
-  competition: z.enum(['High', 'Medium', 'Low', 'N/A']).describe('Estimated competition level for this keyword (High, Medium, Low, or N/A if unknown).'),
-  searchVolume: z.string().describe('Estimated monthly search volume (e.g., "1K-10K/month", "Approx. 500/month", "N/A").'),
-  last30DaysSearches: z.string().describe('Estimated number or trend of searches in the last 30 days (e.g., "Increased", "Stable", "Approx. 1.5K", "N/A").'),
-  last24HoursSearches: z.string().describe('Estimated number or trend of searches in the last 24 hours (e.g., "High activity", "Low", "Approx. 50", "N/A").'),
+  competition: z.enum(['High', 'Medium', 'Low', 'N/A']).describe('Estimated competition level for this keyword (High, Medium, Low, or N/A if unknown). This should be a string.'),
+  searchVolume: z.string().describe('Estimated monthly search volume. Prefer specific numbers or ranges (e.g., "Approx. 500-600/month", "1K-10K/month"). Descriptive terms like "Very High (100k+/month)", "Low (<100/month)" are acceptable if exact numbers are not possible. Use "N/A" if undetermined.'),
+  last30DaysSearches: z.string().describe('Estimated number or trend of searches in the last 30 days. Prefer specific numbers or ranges (e.g., "Approx. 1.5K searches", "Approx. 5000-6000 searches"). If specific numbers are not determinable, use trend descriptions like "Increased", "Stable", "Decreased". Use "N/A" if undetermined.'),
+  last24HoursSearches: z.string().describe('Estimated number or trend of searches in the last 24 hours. Prefer specific numbers or ranges (e.g., "Approx. 50 searches", "Approx. 100-150 searches"). If specific numbers are not determinable, use activity descriptions like "High activity", "Low activity". Use "N/A" if undetermined.'),
 });
 
 const CheckKeywordRankingOutputSchema = z.object({
@@ -73,12 +73,14 @@ const searchWeb = ai.defineTool(
 
     if (platform.toLowerCase() !== 'google') {
       console.log(`Simulating web search for ${query} on ${platform} in ${country} (using placeholder).`);
+      // More detailed placeholder for non-Google platforms
       return `<html><body>
-        <h1>Search Results for ${query} (Placeholder)</h1>
+        <h1>Search Results for ${query} (Placeholder on ${platform})</h1>
         <p>Platform '${platform}' is not supported by live search. This is placeholder data.</p>
         <ol>
-          <li><a href="https://example.com/article1-for-${encodeURIComponent(query)}">Placeholder Top Article about ${query}</a> - Some description.</li>
-          <li><a href="https://another-site.com/resource-on-${encodeURIComponent(query)}">Placeholder Helpful Resource on ${query}</a> - More details.</li>
+          <li><p><strong>Rank: 1</strong></p><p><a href="https://example.com/placeholder-rank1-${encodeURIComponent(query)}">Placeholder Top Result for ${query} on ${platform}</a></p><p>This is a simulated top ranking result for your query on ${platform}.</p><p><small>URL: https://example.com/placeholder-rank1-${encodeURIComponent(query)}</small></p></li>
+          <li><p><strong>Rank: 2</strong></p><p><a href="https://another-example.com/placeholder-rank2-${encodeURIComponent(query)}">Placeholder Second Result for ${query} on ${platform}</a></p><p>Another simulated search result, indicating some competition or related content.</p><p><small>URL: https://another-example.com/placeholder-rank2-${encodeURIComponent(query)}</small></p></li>
+          <li><p><strong>Rank: 3</strong></p><p><a href="https://yet-another-example.com/placeholder-rank3-${encodeURIComponent(query)}">Placeholder Third Result for ${query} on ${platform}</a></p><p>Further simulated content to provide some ranking context.</p><p><small>URL: https://yet-another-example.com/placeholder-rank3-${encodeURIComponent(query)}</small></p></li>
         </ol>
       </body></html>`;
     }
@@ -86,15 +88,15 @@ const searchWeb = ai.defineTool(
     const apiKey = process.env.GOOGLE_API_KEY;
     const cx = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
 
-    if (!apiKey) {
-      console.error('GOOGLE_API_KEY is not set in environment variables.');
-      return '<html><body><h3>Configuration Error</h3><p>Google API Key (GOOGLE_API_KEY) is not configured in the backend. Please contact the administrator or set it in the .env file.</p></body></html>';
+    if (!apiKey || apiKey === "YOUR_GOOGLE_API_KEY_HERE" || apiKey.trim() === "") {
+      console.error('GOOGLE_API_KEY is not set or is set to placeholder in environment variables.');
+      return '<html><body><h3>Configuration Error</h3><p>Google API Key (GOOGLE_API_KEY) is not configured or is set to a placeholder value in the backend. Please set it in the .env file.</p><p>Example: GOOGLE_API_KEY=AIzaSyCIZOyOhkFI7eMD_FrjNQD2Sq1HSKB9two</p></body></html>';
     }
     if (!cx || cx === "YOUR_CUSTOM_SEARCH_ENGINE_ID_HERE" || cx.trim() === "") {
       console.error('GOOGLE_CUSTOM_SEARCH_ENGINE_ID is not set or is set to placeholder in environment variables.');
-      return '<html><body><h3>Configuration Error</h3><p>Google Custom Search Engine ID (GOOGLE_CUSTOM_SEARCH_ENGINE_ID) is not configured or is set to a placeholder value in the backend. Please contact the administrator or update it in the .env file if you are the administrator.</p></body></html>';
+      return '<html><body><h3>Configuration Error</h3><p>Google Custom Search Engine ID (GOOGLE_CUSTOM_SEARCH_ENGINE_ID) is not configured or is set to a placeholder value in the backend. Please set it in the .env file.</p><p>Example: GOOGLE_CUSTOM_SEARCH_ENGINE_ID=YOUR_CX_ID_FROM_GOOGLE_CSE</p></body></html>';
     }
-
+    
     const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&gl=${country.toLowerCase()}&num=20`; // Get top 20 results
 
     try {
@@ -164,7 +166,7 @@ const checkRankingPrompt = ai.definePrompt({
   2.  For each original keyword:
       a.  Use the searchWeb tool to search for the keyword on the specified platform and country. The tool will return HTML content.
       b.  Analyze the HTML content. The HTML will contain a list of search results, each with a "Rank", "URL", "Title", and "Snippet".
-      c.  Identify the highest-ranking or most relevant search result. Extract its numerical position (from "Rank: N"), its full URL (from "URL: http..."), and the URL of the search engine results page you conceptually visited (e.g., "https://www.google.com/search?q=yourquery&gl=US").
+      c.  Identify the highest-ranking or most relevant search result. Extract its numerical position (from "Rank: N"), its full URL (from "URL: http..."), and the URL of the search engine results page you conceptually visited (e.g., "https://www.google.com/search?q=yourquery&gl=US" or for other platforms, "https://www.bing.com/search?q=yourquery&cc=US").
       d.  If the HTML indicates "No results found" or an error, or if ranking cannot be determined, 'ranking' and 'rankedUrl' should be null for that keyword. The 'searchResultPage' should still be the conceptual search URL.
   3.  Compile these findings into the 'originalKeywordRankings' array.
 
@@ -172,10 +174,10 @@ const checkRankingPrompt = ai.definePrompt({
   1.  Based on the overall context of the input keywords and the search results from Part 1, generate a list of 5-6 distinct related keywords that could be valuable for the user.
   2.  For each of these *related* keywords, provide the following estimations. Base these estimations on your general SEO knowledge and, if applicable, insights from any searchWeb tool usage. These are estimates, not exact figures.
       a.  'relatedKeyword': The related keyword itself.
-      b.  'competition': Estimate the competition level as 'High', 'Medium', or 'Low'. If you cannot determine, use 'N/A'.
-      c.  'searchVolume': Estimate the monthly search volume. Use descriptive terms like "Very High (100k+)", "High (10k-100k)", "Medium (1k-10k)", "Low (100-1k)", "Very Low (<100)", or "N/A".
-      d.  'last30DaysSearches': Estimate the search trend or volume over the last 30 days. Use terms like "Significant Increase", "Moderate Increase", "Stable", "Moderate Decrease", "Significant Decrease", "Approx. [Number] searches", or "N/A".
-      e.  'last24HoursSearches': Estimate the search trend or volume over the last 24 hours. Use terms like "High activity", "Moderate activity", "Low activity", "Approx. [Number] searches", or "N/A".
+      b.  'competition': Estimate the competition level as 'High', 'Medium', or 'Low'. If you cannot determine, use 'N/A'. This should be a string value.
+      c.  'searchVolume': Estimate the monthly search volume. Prefer specific numbers or ranges (e.g., "Approx. 500-600/month", "1K-10K/month"). Descriptive terms like "Very High (100k+/month)", "Low (<100/month)" are acceptable if exact numbers are not possible. Use "N/A" if undetermined.
+      d.  'last30DaysSearches': Estimate the search volume or trend over the last 30 days. Prefer specific numbers or ranges (e.g., "Approx. 1.5K searches", "Approx. 5000-6000 searches"). If specific numbers are not determinable, use trend descriptions like "Increased", "Stable", "Decreased". Use "N/A" if undetermined.
+      e.  'last24HoursSearches': Estimate the search volume or trend over the last 24 hours. Prefer specific numbers or ranges (e.g., "Approx. 50 searches", "Approx. 100-150 searches"). If specific numbers are not determinable, use activity descriptions like "High activity", "Low activity". Use "N/A" if undetermined.
   3.  Compile these findings into the 'relatedKeywordSuggestions' array. If no relevant suggestions can be made, this array can be empty.
 
   Output Format:
@@ -229,5 +231,3 @@ const checkKeywordRankingFlow = ai.defineFlow(
     };
   }
 );
-
-    
